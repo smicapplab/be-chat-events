@@ -1,0 +1,107 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+
+Parameters:
+  EnvironmentType:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - prod
+    Description: "Specify the environment (dev or prod)"
+
+Resources:
+  ChatEventFunctionsExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: LambdaPermissions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:ReceiveMessage
+                  - sqs:SendMessage
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueAttributes
+                Resource: !Sub arn:aws:sqs:ap-southeast-1:{{resolve:secretsmanager:${EnvironmentType}-secrets-lambda:SecretString:ACCOUNT_ID}}:*
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:DeleteObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub arn:aws:s3:::storrefranca-portal-dev
+                  - !Sub arn:aws:s3:::storrefranca-portal-dev/*     
+
+  DevApiGateway:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: dev
+      Description: "API Gateway for the ChatEventFunctions in dev stage"
+
+  # Lambda Layer: Framework
+  FrameworkLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: FrameworkLayer
+      ContentUri: lambda-layers/framework
+      CompatibleRuntimes:
+        - nodejs22.x
+  AwsLibLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: AwsLibLayer
+      ContentUri: lambda-layers/aws
+      CompatibleRuntimes:
+        - nodejs22.x
+
+  ChatEventFunctions:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: dist/lambda.handler
+      Runtime: nodejs22.x
+      CodeUri: ./dist
+      MemorySize: 1024
+      Timeout: 15
+      Architectures:
+        - arm64
+      Role: !GetAtt ChatEventFunctionsExecutionRole.Arn
+      Environment:
+        Variables:
+          DB_HOST: !Sub "{{resolve:secretsmanager:${EnvironmentType}-secrets-chat:SecretString:DB_HOST}}"
+          DB_PORT: !Sub "{{resolve:secretsmanager:${EnvironmentType}-secrets-chat:SecretString:DB_PORT}}"
+          DB_USER: !Sub "{{resolve:secretsmanager:${EnvironmentType}-secrets-chat:SecretString:DB_USER}}"
+          DB_PASSWORD: !Sub "{{resolve:secretsmanager:${EnvironmentType}-secrets-chat:SecretString:DB_PASSWORD}}"
+          DB_NAME: !Sub "{{resolve:secretsmanager:${EnvironmentType}-secrets-chat:SecretString:DB_NAME}}"
+          NODE_ENV: !Sub "{{resolve:secretsmanager:${EnvironmentType}-secrets-chat:SecretString:NODE_ENV}}"
+          PRI_AWS_ACCESS_KEY: !Sub "{{resolve:secretsmanager:${EnvironmentType}-secrets-chat:SecretString:PRI_AWS_ACCESS_KEY}}"
+          PRI_AWS_SECRET_KEY: !Sub "{{resolve:secretsmanager:${EnvironmentType}-secrets-chat:SecretString:PRI_AWS_SECRET_KEY}}"
+          JWT_SECRET: !Sub "{{resolve:secretsmanager:${EnvironmentType}-secrets-chat:SecretString:JWT_SECRET}}"
+          OPENAI_API_KEY: !Sub "{{resolve:secretsmanager:${EnvironmentType}-secrets-chat:SecretString:OPENAI_API_KEY}}"
+          AWS_PORTAL_BUCKET: !Sub "{{resolve:secretsmanager:${EnvironmentType}-secrets-chat:SecretString:AWS_PORTAL_BUCKET}}"
+          AWS_PORTAL_URL: !Sub "{{resolve:secretsmanager:${EnvironmentType}-secrets-chat:SecretString:AWS_PORTAL_URL}}"
+          CHAT_ADMIN_URL: !Sub "{{resolve:secretsmanager:${EnvironmentType}-secrets-chat:SecretString:CHAT_ADMIN_URL}}"
+          SQS_EMAIL_QUEUE: !Sub https://sqs.ap-southeast-1.amazonaws.com/{{resolve:secretsmanager:${EnvironmentType}-secrets-chat:SecretString:ACCOUNT_ID}}/EMAIL_QUEUE
+          SQS_CHAT_QUEUE: !Sub https://sqs.ap-southeast-1.amazonaws.com/{{resolve:secretsmanager:${EnvironmentType}-secrets-chat:SecretString:ACCOUNT_ID}}/CHAT_QUEUE
+      Layers:
+        - !Ref FrameworkLayer
+        - !Ref AwsLibLayer
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref DevApiGateway
+            Path: /{proxy+}
+            Method: ANY
