@@ -1,8 +1,11 @@
-import { OcrService } from "src/ocr/ocr.service";
-import { Injectable } from "@nestjs/common";
+import { OcrService } from "../ocr/ocr.service";
+import { Injectable, Logger } from "@nestjs/common";
+import { GenerateContentDto, OcrAnalysisDto } from "../ocr/dto/ocr.dto";
 
 @Injectable()
 export class SqsUtil {
+    private readonly logger = new Logger(SqsUtil.name);
+
     constructor(
         private readonly ocrService: OcrService,
     ) { }
@@ -10,22 +13,25 @@ export class SqsUtil {
     async handleSQSMessage(
         action: string,
         data: any
-    ): Promise<any> {
+    ): Promise<boolean | string> {
         try {
+            this.logger.log(`Handling SQS action: ${action}`);
             switch (action) {
                 case "process-pdf":
-                    await this.ocrService.getDocumentAnalysis(data);
+                case "doc-analysis":
+                    await this.ocrService.getDocumentAnalysis(data as OcrAnalysisDto);
                     break;
                 case "generate-content":
-                    await this.ocrService.generateContent(data);
+                    await this.ocrService.generateContent(data as GenerateContentDto);
                     break;
                 default:
-                    return "Unknown Queque"
+                    this.logger.warn(`Unknown action received: ${action}`);
+                    return "Unknown Action";
             }
-
             return true;
         } catch (error) {
-            throw error;
+            this.logger.error(`Error handling SQS message (${action}):`, error);
+            throw error; // Propagate to trigger SQS retry/DLQ
         }
     }
 }

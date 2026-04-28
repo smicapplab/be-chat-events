@@ -1,45 +1,48 @@
 import { NestFactory } from '@nestjs/core';
+import { INestApplicationContext, Logger } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { SqsUtil } from './utils/sqs-util';
 
-let app: any;
+let cachedApp: INestApplicationContext;
+const logger = new Logger('LambdaHandler');
 
 async function bootstrap() {
-  app = await NestFactory.create(AppModule);
-  await app.init();
+  if (!cachedApp) {
+    const app = await NestFactory.createApplicationContext(AppModule);
+    cachedApp = app;
+  }
+  return cachedApp;
 }
 
 export const handler = async (event: any, context: any) => {
   context.callbackWaitsForEmptyEventLoop = false;
+  
   try {
-    if (!app) {
-      await bootstrap();
-    }
-
+    const app = await bootstrap();
     const sqsUtil = app.get(SqsUtil);
 
-    // SQS Requests
-    if (event.Records && event.Records.length > 0) {
-      const sqsMessage = event.Records[0];
-      const messageBody = JSON.parse(sqsMessage.body);
-      const { action, data = {} } = messageBody;
-      const response = await sqsUtil.handleSQSMessage(action, data)
-      return response;
+    if (!event.Records || event.Records.length === 0) {
+      logger.warn('No records found in SQS event');
+      return { message: "No records to process" };
     }
 
-    return { message: "Unknown Queue triggered!!!!!" };
+    // Process all records and wait for them to finish
+    // Note: In production, you might want to handle partial failures
+    for (const record of event.Records) {
+      try {
+        const messageBody = JSON.parse(record.body);
+        const { action, data = {} } = messageBody;
+        await sqsUtil.handleSQSMessage(action, data);
+      } catch (recordError) {
+        logger.error(`Failed to process record ${record.messageId}`, recordError);
+        throw recordError; // Rethrow to mark the whole batch as failed (standard SQS behavior)
+      }
+    }
+
+    return { message: "Success" };
   } catch (error) {
-    console.error('Error in lambda handler:', error);
-    return {
-      statusCode: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Credentials': true,
-      },
-      body: JSON.stringify({
-        message: 'Internal server error',
-        error: error.message
-      }),
-    };
+    logger.error('Critical error in lambda handler:', error);
+    // Rethrowing allows AWS SQS to handle retries and DLQ
+    throw error;
   }
 };

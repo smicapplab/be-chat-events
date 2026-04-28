@@ -1,8 +1,10 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Post, Logger } from '@nestjs/common';
 import { OcrService } from './ocr.service';
+import { GenerateContentDto, OcrAnalysisDto, RecoverErrorsDto } from './dto/ocr.dto';
 
 @Controller('ocr')
 export class OcrController {
+    private readonly logger = new Logger(OcrController.name);
 
     constructor(
         private readonly ocrService: OcrService
@@ -10,40 +12,40 @@ export class OcrController {
 
     @Post("doc-analysis")
     async getDocumentAnalysis(
-        @Body() dto: { docTrainingId: number; jobId: string, description: string }
+        @Body() dto: OcrAnalysisDto
     ) {
         try {
             const result = await this.ocrService.getDocumentAnalysis(dto);
             return { ...result, message: "" }
         } catch (error) {
-            console.error(error)
-            return { success: false, result: "", message: "Something went wrong.  Please try again." }
+            this.logger.error('Document analysis failed', error);
+            return { success: false, result: "", message: "Something went wrong. Please try again." }
         }
     }
 
     @Post("recover-errors")
     async recoverErrors(
-        @Body() dto: { docTrainingId: number; }
+        @Body() dto: RecoverErrorsDto
     ) {
         try {
             await this.ocrService.recoverErrors(dto);
             return { success: true }
         } catch (error) {
-            return { error }
+            this.logger.error('Error recovery failed', error);
+            return { error: error.message }
         }
     }
 
     @Post("generate-content")
     async generateContent(
-        @Body() dto: { docTrainingId: number; jobId: string, description: string }
+        @Body() dto: GenerateContentDto
     ) {
         try {
             const result = await this.ocrService.generateContent(dto);
             return { ...result, message: "" }
         } catch (error) {
-            console.error(error)
-            return { success: false, result: "", message: "Something went wrong.  Please try again." }
+            this.logger.error('Content generation failed', error);
+            return { success: false, result: "", message: "Something went wrong. Please try again." }
         }
     }
-
 }

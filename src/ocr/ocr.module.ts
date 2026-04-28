@@ -1,10 +1,11 @@
 import { Module } from '@nestjs/common';
 import { OcrService } from './ocr.service';
 import { OcrController } from './ocr.controller';
-import { DatabaseService } from 'src/database/database.service';
+import { DatabaseModule } from 'src/database/database.module';
 
 @Module({
-  providers: [OcrService, DatabaseService],
+  imports: [DatabaseModule],
+  providers: [OcrService],
   exports: [OcrService],
   controllers: [OcrController]
 })
