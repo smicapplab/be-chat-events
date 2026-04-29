@@ -5,7 +5,7 @@ import { SqsService } from './sqs.service';
 
 @Global()
 @Module({
-    providers: [S3Service, TextractService, SqsService],
-    exports: [S3Service, TextractService, SqsService],
+  providers: [S3Service, TextractService, SqsService],
+  exports: [S3Service, TextractService, SqsService],
 })
-export class AwsModule { }
+export class AwsModule {}

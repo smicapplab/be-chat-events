@@ -16,14 +16,14 @@ async function bootstrap() {
 
 export const handler = async (event: any, context: any) => {
   context.callbackWaitsForEmptyEventLoop = false;
-  
+
   try {
     const app = await bootstrap();
     const sqsUtil = app.get(SqsUtil);
 
     if (!event.Records || event.Records.length === 0) {
       logger.warn('No records found in SQS event');
-      return { message: "No records to process" };
+      return { message: 'No records to process' };
     }
 
     // Process all records and wait for them to finish
@@ -34,12 +34,15 @@ export const handler = async (event: any, context: any) => {
         const { action, data = {} } = messageBody;
         await sqsUtil.handleSQSMessage(action, data);
       } catch (recordError) {
-        logger.error(`Failed to process record ${record.messageId}`, recordError);
+        logger.error(
+          `Failed to process record ${record.messageId}`,
+          recordError,
+        );
         throw recordError; // Rethrow to mark the whole batch as failed (standard SQS behavior)
       }
     }
 
-    return { message: "Success" };
+    return { message: 'Success' };
   } catch (error) {
     logger.error('Critical error in lambda handler:', error);
     // Rethrowing allows AWS SQS to handle retries and DLQ

@@ -17,4 +17,4 @@ import { AwsModule } from './utils/aws.module';
   controllers: [AppController],
   providers: [AppService, SqsUtil],
 })
-export class AppModule { }
+export class AppModule {}

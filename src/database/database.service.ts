@@ -5,18 +5,18 @@ import knexConfig from '../../knexfile';
 
 @Injectable()
 export class DatabaseService implements OnModuleDestroy {
-    private knex: Knex.Knex;
+  private knex: Knex.Knex;
 
-    constructor(private configService: ConfigService) {
-        const env = this.configService.get<string>('NODE_ENV') || 'development';
-        this.knex = Knex(knexConfig[env]);
-    }
+  constructor(private configService: ConfigService) {
+    const env = this.configService.get<string>('NODE_ENV') || 'development';
+    this.knex = Knex(knexConfig[env]);
+  }
 
-    getKnex() {
-        return this.knex;
-    }
+  getKnex() {
+    return this.knex;
+  }
 
-    async onModuleDestroy() {
-        await this.knex.destroy();
-    }
+  async onModuleDestroy() {
+    await this.knex.destroy();
+  }
 }

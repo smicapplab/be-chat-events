@@ -7,6 +7,6 @@ import { DatabaseModule } from 'src/database/database.module';
   imports: [DatabaseModule],
   providers: [OcrService],
   exports: [OcrService],
-  controllers: [OcrController]
+  controllers: [OcrController],
 })
-export class OcrModule { }
+export class OcrModule {}
